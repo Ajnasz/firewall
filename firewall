@@ -1,0 +1,484 @@
+#!/bin/bash
+# Copyright (c) 2005-2009Ajnasz, Hungary
+#
+# Author: Lajos KOSZTI [Ajnasz] (ajnasz@gmail.com), 2005-2009
+#
+# Last modified: 2009-02-23 23:49
+#
+# /etc/init.d/firewall
+
+# set here the configuration file path
+CONFIG_FILE=/etc/firewall.conf
+
+
+#### OUTPUT PORTS #####
+# 20,21 ftp
+# 22 ssh
+# 25 smtp
+# 53 dns
+# 80 http
+# 110 pop3
+# 111 nfs - portmapper
+# 443 https
+# 587 smtp tls
+# 993 imap ssl
+# 1863 msn
+# 2049 nfs
+# 3000 travelwiki
+# 5222 gtalk
+# 6600 mpd
+# 6667 irc
+# 6883 azureus swing ui
+# 23399 skype
+#### OUTPUT PORTS #####
+
+function displayHelp {
+  MESSAGEVV+="\E[1;34mstart displayHelp module\n";
+  MESSAGE+="Usage: \E[1;32mfirewall \033[0m(\E[1;34mstart | stop | share | restart\033[0m)\n";
+  MESSAGE+="\E[1;36mstart\033[0m - \E[0;36mStart configured filewall, output, input chain filtered, internet connection shared\n";
+  MESSAGE+="\E[1;36mstop\033[0m  - \E[0;36mDelete all rule, set policies to default (accept everything)\n";
+  MESSAGE+="";
+}
+# eth ip megallapitas
+function getIp {
+  IFACE=$1;
+  IP=`/sbin/ifconfig $IFACE | grep inet | awk {'print $2'} | cut -d":" -f2`;
+  echo $IP;
+}
+# globalis interface kinyerese
+function getGlobIface {
+  MESSAGE+="\E[1;34mStart getGlobIface module";
+  if [ "$WLAN0_IP" != "" ]; then
+    GLOB_IFACE="wlan0";
+  fi
+
+  if [ "$ETH0_IP" != "" ]; then
+    GLOB_IFACE="eth0";
+  fi
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+
+}
+
+# initialize firewall depedencies
+function initFW {
+  rmModules;
+  getGlobIface;
+  loadModules;
+  delRules;
+}
+
+
+# modulok betoltese
+function loadModules {
+  MESSAGE+="\E[1;34mStart loadModules module";
+  modprobe ip_tables &> /dev/null;
+  modprobe ip_conntrack &> /dev/null;
+  modprobe iptable_filter &> /dev/null;
+  modprobe iptable_mangle &> /dev/null;
+  # modprobe iptable_nat &> /dev/null;
+  modprobe ipt_LOG &> /dev/null;
+  modprobe ipt_limit &> /dev/null;
+  modprobe ipt_state &> /dev/null;
+  modprobe ipt_owner &> /dev/null;
+  modprobe ipt_REJECT &> /dev/null;
+  # modprobe ipt_MASQUERADE &> /dev/null;
+  # modprobe ip_nat_ftp &> /dev/null;
+  # modprobe ip_conntract_ftp &> /dev/null;
+  # modprobe ip_nat_irc &> /dev/null;
+  # modprobe ip_conntrack_irc &> /dev/null;
+  # modprobe ip_conntrack_tftp &> /dev/null;
+  # modprobe ip_conntrack_amanda &> /dev/null;
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+function rmModules {
+  MESSAGE+="\E[1;34mStart rmModules module";
+  rmmod ip_tables &> /dev/null;
+  rmmod ip_conntrack &> /dev/null;
+  rmmod iptable_filter &> /dev/null;
+  rmmod iptable_mangle &> /dev/null;
+  # rmmod iptable_nat &> /dev/null;
+  rmmod ipt_LOG &> /dev/null;
+  rmmod ipt_limit &> /dev/null;
+  rmmod ipt_state &> /dev/null;
+  rmmod ipt_owner &> /dev/null;
+  rmmod ipt_REJECT &> /dev/null;
+  # rmmod ipt_MASQUERADE;
+  # rmmod ip_nat_ftp;
+  # rmmod ip_nat_irc;
+  # rmmod ip_conntrack_irc;
+  # rmmod ip_conntrack_tftp;
+  # rmmod ip_conntrack_amanda;
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+
+}
+
+# osszes szabaly torlese
+function delRules {
+  MESSAGE+="\E[1;34mStart delRules module";
+  $IPTABLES -P INPUT ACCEPT;
+  $IPTABLES -P FORWARD ACCEPT;
+  $IPTABLES -P OUTPUT ACCEPT;
+  for table in filter mangle nat raw; do
+    $IPTABLES -t $table -F;
+    $IPTABLES -t $table -X;
+  done;
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+
+# input lanc alapertelmezett szabalyai
+function initInput {
+  MESSAGE+="\E[1;34mStart initInput module";
+  $IPTABLES -A INPUT -m state --state INVALID -j DROP;
+  $IPTABLES -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT;
+  $IPTABLES -A INPUT -i lo -m state --state NEW -j ACCEPT;
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+function closeInput {
+  $IPTABLES -A INPUT -j DROP;
+}
+
+# output lanc alapertelmezett szabalyai
+function initOutput {
+  MESSAGE+="\E[1;34mStart initOutput module";
+
+  $IPTABLES -P OUTPUT DROP;
+  $IPTABLES -A OUTPUT -m state --state INVALID -j DROP;
+  $IPTABLES -A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT;
+  $IPTABLES -A OUTPUT -o lo -j ACCEPT;
+}
+
+function closeOutput {
+  $IPTABLES -A OUTPUT -j DROP;
+}
+
+function outputAllowedPorts {
+  $IPTABLES -A OUTPUT -p icmp -j ACCEPT;
+  for port in $ALLOWED_OUT_TCP_PORTS
+    do
+    $IPTABLES -A OUTPUT -o $GLOB_IFACE -p tcp --dport $port -j ACCEPT;
+  done
+  for port in $ALLOWED_OUT_UDP_PORTS
+    do
+    $IPTABLES -A OUTPUT -o $GLOB_IFACE -p udp --dport $port -j ACCEPT;
+  done
+#  $IPTABLES -A OUTPUT -j LOG --log-prefix "$LOG_PREFIX:output:";
+}
+
+function outputFTP {
+  $IPTABLES -A OUTPUT -o $GLOB_IFACE -p tcp --dport 21 -j ACCEPT
+  $IPTABLES -A OUTPUT -o $GLOB_IFACE -p tcp --dport 21 -j ACCEPT
+}
+# internet megosztas
+function shareNet {
+  MESSAGE+="\E[1;34mStart shareNet module";
+  echo 1 > /proc/sys/net/ipv4/ip_forward;
+  $IPTABLES -t nat -A POSTROUTING -o eth1 -j MASQUERADE;
+  SHARENET=1
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+# icmp csomagok szurese
+function allowIcmpIn {
+  MESSAGE+="\E[1;34mStart allowIcmpIn module";
+# http://debianszerver.hu/firewall/index.php
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp --fragment -j DROP;
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT;
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp --icmp-type echo-request -j DROP;
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp -j ACCEPT;
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+function allowSSH {
+  MESSAGE+="\E[1;34mStart allowSSH module";
+  if [ -z $ALLOWED_SSH_IPS  ]; then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -m state --state NEW -m recent --name SSH_CONN --set;
+    if [ $LOGGING -eq 1 ];then
+      $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -m state --state NEW -m recent --name SSH_CONN --update --seconds 120 --hitcount 3 -j LOG --log-prefix "$LOG_PREFIX:ssh-conn:" --log-level=$LOG_LEVEL;
+    fi
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -m state --state NEW -m recent --name SSH_CONN --update --seconds 120 --hitcount 3 -j DROP;
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -m state --state NEW -j ACCEPT;
+
+  else
+    for ip in $ALLOWED_SSH_IPS
+      do
+      $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -s $ip -m state --state NEW -m recent --name SSH_CONN --set;
+      if [ $LOGGING -eq 1 ];then
+        $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -s $ip -m state --state NEW -m recent --name SSH_CONN --update --seconds 120 --hitcount 3 -j LOG --log-prefix "$LOG_PREFIX:ssh-conn:" --log-level=$LOG_LEVEL;
+      fi
+      $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -s $ip -m state --state NEW -m recent --name SSH_CONN --update --seconds 120 --hitcount 3 -j DROP;
+      $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -s $ip -m state --state NEW -j ACCEPT;
+
+    done
+  fi
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+function portSD {
+  MESSAGE+="\E[1;34mStart portSD module";
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -m psd -j LOG --log-level=$LOG_LEVEL --log-prefix "$LOG_PREFIX:psd:";
+  fi
+  $IPTABLES -A INPUT -m psd -j DROP;
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+function attack {
+
+  MESSAGE+="\E[1;34mStart attack module";
+  # NULL-SCAN
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL NONE -j LOG --log-prefix "$LOG_PREFIX:Null-Scan:" --log-level=$LOG_LEVEL;
+  fi
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL NONE -j DROP
+
+  # XMAS-SCAN
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL ALL -j LOG --log-prefix "$LOG_PREFIX:Xmas-Scan:" --log-level=$LOG_LEVEL;
+  fi
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL ALL -j DROP;
+
+  # SYNFIN-SCAN
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL SYN,FIN -j LOG --log-prefix "$LOG_PREFIX:SynFin-Scan:" --log-level=$LOG_LEVEL;
+  fi
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL SYN,FIN -j DROP;
+
+  # NMAP-XMAS-SCAN
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL URG,PSH,FIN -j LOG --log-prefix "$LOG_PREFIX:Nmap-Xmas-Scan:" --log-level=$LOG_LEVEL;
+  fi
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL URG,PSH,FIN -j DROP;
+
+  # FIN-SCAN
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL FIN -j LOG --log-prefix "$LOG_PREFIX:Fin-Scan:" --log-level=$LOG_LEVEL;
+  fi
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL FIN -j DROP;
+
+  # NMAP-ID
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL URG,PSH,SYN,FIN -j LOG --log-prefix "$LOG_PREFIX:Nmap-Id:" --log-level=$LOG_LEVEL;
+  fi
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL URG,PSH,SYN,FIN -j DROP;
+
+  # SYN-RST
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags SYN,RST SYN,RST -j LOG --log-prefix "$LOG_PREFIX:Syn-Rst:" --log-level=$LOG_LEVEL;
+  fi
+  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags SYN,RST SYN,RST -j DROP;
+
+# syn-flood
+#  $IPTABLES -N syn-flood;
+#  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --syn -j syn-flood;
+#  $IPTABLES -A syn-flood -i $GLOB_IFACE -p tcp -m limit --limit 3/s --limit-burst 4 -j RETURN;
+#  if [ $LOGGING -eq 1 ];then
+#    $IPTABLES -A syn-flood -i $GLOB_IFACE -j LOG --log-prefix "$LOG_PREFIX:SYN-FLOOD:" --log-level=$LOG_LEVEL;
+#  fi
+#  $IPTABLES -A syn-flood -i $GLOB_IFACE -j DROP;
+
+# new con without syn
+#  if [ $LOGGING -eq 1 ];then
+#    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp ! --syn -m state --state NEW -j LOG --log-level=$LOG_LEVEL --log-prefix "$LOG_PREFIX:new-wo-syn";
+#  fi
+#  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp ! --syn -m state --state NEW -j DROP;
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+
+function allowedInPorts {
+  MESSAGE+="\E[1;34mStart allowedInPorts module";
+  # $IPTABLES -A INPUT -s 192.168.1.0/24 -p tcp --dport 3000 -j ACCEPT
+  # $IPTABLES -A INPUT -s 192.168.131.0/24 -p tcp --dport 3000 -j ACCEPT
+  for i in $ALLOWED_IN_TCP_PORTS
+    do
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $i -m state --state NEW -j ACCEPT;
+  done
+  for i in $ALLOWED_IN_UDP_PORTS
+    do
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p udp --dport $i -m state --state NEW -j ACCEPT;
+  done
+    MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+
+function logUnclean {
+  MESSAGE+="\E[1;34mStart logUnclean module";
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT -m unclean -j LOG --log-prefix "$LOG_PREFIX:unclean:" --log-level=$LOG_LEVEL;
+  fi
+  MESSAGE+=" \E[1;37mdone\033[0m\n";
+}
+
+function allowInMultiport {
+  MESSAGE+="\E[1;34mStart allowMultiport module";
+  for i in $ALLOWED_IN_MULTIPORT
+    do
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $i -m state --state NEW -j ACCEPT;
+  done
+}
+
+function forceProxy {
+  $IPTABLES -t nat -A  POSTROUTING -o $GLOB_IFACE -p tcp --dport 80 -j SNAT --to-source 10.1.0.1:3128
+}
+
+function dnat {
+  $IPTABLES -t nat -A PREROUTING -i $GLOB_IFACE -p tcp --dport $1 -j DNAT --to-destination $2;
+}
+
+function dropTcpPorts {
+  for i in $DROPPED_PORTS
+    do
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $i -j DROP;
+  done
+}
+
+function rejectTcpPorts {
+  for i in $REJECT_TCP_PORTS
+    do
+    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $i -j REJECT;
+    echo "reject $i";
+  done
+}
+
+function logDrop {
+  if [ $LOGGING -eq 1 ];then
+    $IPTABLES -A INPUT ! -p udp -j LOG --log-prefix "$LOG_PREFIX:log-drop";
+  fi
+}
+function setOutTcpPorts {
+
+# TEMP=`getopt -o ab:c:: --long a-long,b-long:,c-long:: -n 'example.bash' -- "$@"`
+
+  #while getopt --longoptions "ftp:,ssh:,smtp:,dns:,https:,nfs:,smtptls:,imapssl:,pop3s:,msn:,gtalk:,mpd:,irc:,azureus-swing:,skype:,ports:" Option; do
+  while [ "$#" -gt "0" ]
+  do
+    case "$1" in
+      'azureus-swing') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 6883";;
+      'ftp') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 20 21";;
+      'gtalk') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 5222 5223";;
+      'http') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 80";;
+      'https') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 443";;
+      'imapssl') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 993";;
+      'irc') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 6667";;
+      'mpd') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 6600";;
+      'msn') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 1863";;
+      'pop3s') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 995";;
+      'skype') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 23399";;
+      'smb') ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_UDP_PORTS137 138 139 445";;
+      'smtp') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 25";;
+      'smtptls') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 587";;
+      'ssh') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 22";;
+      'whois') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 43";;
+      'nfs')
+        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 111 2049";
+        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_UDP_PORTS 111 2049";
+        ;;
+      'dns')
+        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 53";
+        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_UDP_PORTS 53";
+        ;;
+      'ntp')
+        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 123";
+        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_TCP_PORTS 123";
+        ;;
+     # '--ports')
+     # ;;
+    esac;
+    shift;
+  done;
+}
+
+###############################  Tuzfal konfiguracio ###############################
+
+. $CONFIG_FILE
+setOutTcpPorts $ALLOWED_SERVICES_TO_CONNECT
+
+##############################  Tuzfal konfiguracio end #############################
+
+function startFW {
+    echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
+    initFW;
+    if [ $SHARENET -eq 1 ];then
+      shareNet
+#     dnat 2000 172.16.111.212;
+    fi
+#    logUnclean;
+    initInput;
+    if [ $FILTER_OUTGOING -eq 1 ]; then
+      initOutput;
+      outputAllowedPorts;
+      closeOutput;
+    fi
+    dropTcpPorts;
+    rejectTcpPorts;
+    attack;
+    allowIcmpIn;
+    if [ $ALLOW_SSH -eq 1 ];then
+      allowSSH;
+    fi
+    allowedInPorts;
+    logDrop;
+    closeInput;
+    echo -e -n " \E[1;37mdone\E[1;34m\033[0m\n";
+}
+
+
+##############################################################################
+#################  Tuzfal -- Tuzfal -- Tuzfal -- Tuzfal --  ##################
+##############################################################################
+
+while [ "$#" -gt "0" ]
+do
+  case "$1" in
+  'start')
+    startFW
+  ;;
+
+  'restart')
+    startFW
+  ;;
+
+
+  'stop')
+    echo -e -n "\E[1;35mStop Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
+    initFW;
+    echo -e -n " \E[1;37mdone\E[1;34m\033[0m\n";
+  ;;
+
+  '--help' | '-h')
+    displayHelp;
+  ;;
+
+  "share")
+    echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\003[0m";
+    initFW;
+#    logUnclean;
+    initInput;
+    dropTcpPorts;
+    rejectTcpPorts;
+    attack;
+    allowIcmpIn;
+    allowSSH;
+    allowedInPorts;
+    closeInput;
+    echo -e -n " \E[1;37mdone\E[1;34m\033[0m\n";
+  ;;
+
+  "-v")
+    SHOWMESSAGE=1;
+    ;;
+
+  *)
+    echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
+    displayHelp;
+  ;;
+  esac
+  shift;
+done;
+
+if [ ! -z "$SHOWMESSAGE" ]; then
+  echo -e "$MESSAGE";
+fi
