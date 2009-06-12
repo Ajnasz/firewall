@@ -60,7 +60,7 @@ function getGlobIface {
 }
 
 # initialize firewall depedencies
-function initFW {
+function resetFW {
   rmModules;
   getGlobIface;
   loadModules;
@@ -71,44 +71,20 @@ function initFW {
 # modulok betoltese
 function loadModules {
   MESSAGE+="\E[1;34mStart loadModules module";
-  modprobe ip_tables &> /dev/null;
-  modprobe ip_conntrack &> /dev/null;
-  modprobe iptable_filter &> /dev/null;
-  modprobe iptable_mangle &> /dev/null;
-  # modprobe iptable_nat &> /dev/null;
-  modprobe ipt_LOG &> /dev/null;
-  modprobe ipt_limit &> /dev/null;
-  modprobe ipt_state &> /dev/null;
-  modprobe ipt_owner &> /dev/null;
-  modprobe ipt_REJECT &> /dev/null;
-  # modprobe ipt_MASQUERADE &> /dev/null;
-  # modprobe ip_nat_ftp &> /dev/null;
-  # modprobe ip_conntract_ftp &> /dev/null;
-  # modprobe ip_nat_irc &> /dev/null;
-  # modprobe ip_conntrack_irc &> /dev/null;
-  # modprobe ip_conntrack_tftp &> /dev/null;
-  # modprobe ip_conntrack_amanda &> /dev/null;
+  modprobe ip_tables;
+  modprobe nf_conntrack_ftp;
   MESSAGE+=" \E[1;37mdone\033[0m\n";
 }
 
 function rmModules {
   MESSAGE+="\E[1;34mStart rmModules module";
-  rmmod ip_tables &> /dev/null;
-  rmmod ip_conntrack &> /dev/null;
-  rmmod iptable_filter &> /dev/null;
-  rmmod iptable_mangle &> /dev/null;
-  # rmmod iptable_nat &> /dev/null;
-  rmmod ipt_LOG &> /dev/null;
-  rmmod ipt_limit &> /dev/null;
-  rmmod ipt_state &> /dev/null;
-  rmmod ipt_owner &> /dev/null;
-  rmmod ipt_REJECT &> /dev/null;
-  # rmmod ipt_MASQUERADE;
-  # rmmod ip_nat_ftp;
-  # rmmod ip_nat_irc;
-  # rmmod ip_conntrack_irc;
-  # rmmod ip_conntrack_tftp;
-  # rmmod ip_conntrack_amanda;
+  rmmod nf_conntrack_ftp &> /dev/null
+  rmmod iptable_mangle &> /dev/null
+  rmmod iptable_filter &> /dev/null
+  rmmod iptable_raw &> /dev/null
+  rmmod iptable_nat &> /dev/null
+  rmmod iptable_filter &> /dev/null
+  rmmod ip_tables &> /dev/null
   MESSAGE+=" \E[1;37mdone\033[0m\n";
 
 }
@@ -167,10 +143,6 @@ function outputAllowedPorts {
 #  $IPTABLES -A OUTPUT -j LOG --log-prefix "$LOG_PREFIX:output:";
 }
 
-function outputFTP {
-  $IPTABLES -A OUTPUT -o $GLOB_IFACE -p tcp --dport 21 -j ACCEPT
-  $IPTABLES -A OUTPUT -o $GLOB_IFACE -p tcp --dport 21 -j ACCEPT
-}
 # internet megosztas
 function shareNet {
   MESSAGE+="\E[1;34mStart shareNet module";
@@ -348,6 +320,7 @@ function logDrop {
     $IPTABLES -A INPUT ! -p udp -j LOG --log-prefix "$LOG_PREFIX:log-drop";
   fi
 }
+
 function setOutTcpPorts {
 
 # TEMP=`getopt -o ab:c:: --long a-long,b-long:,c-long:: -n 'example.bash' -- "$@"`
@@ -400,7 +373,7 @@ setOutTcpPorts $ALLOWED_SERVICES_TO_CONNECT
 
 function startFW {
     echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
-    initFW;
+    resetFW;
     if [ $SHARENET -eq 1 ];then
       shareNet
 #     dnat 2000 172.16.111.212;
@@ -433,18 +406,14 @@ function startFW {
 while [ "$#" -gt "0" ]
 do
   case "$1" in
-  'start')
-    startFW
-  ;;
-
-  'restart')
+  'start' | 'restart')
     startFW
   ;;
 
 
   'stop')
     echo -e -n "\E[1;35mStop Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
-    initFW;
+    resetFW;
     echo -e -n " \E[1;37mdone\E[1;34m\033[0m\n";
   ;;
 
@@ -454,7 +423,7 @@ do
 
   "share")
     echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\003[0m";
-    initFW;
+    resetFW;
 #    logUnclean;
     initInput;
     dropTcpPorts;
