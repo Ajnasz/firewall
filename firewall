@@ -16,24 +16,18 @@ function displayHelp {
   MESSAGE+="\E[1;36mstop\033[0m  - \E[0;36mDelete all rule, set policies to default (accept everything)\n";
   MESSAGE+="";
 }
-# eth ip megallapitas
-function getIp {
-  IFACE=$1;
-  IP=`/sbin/ifconfig $IFACE | grep inet | awk {'print $2'} | cut -d":" -f2`;
-  echo $IP;
-}
 # globalis interface kinyerese
 function getGlobIface {
   MESSAGE+="\E[1;34mStart getGlobIface module";
-  if [ "$WLAN0_IP" != "" ]; then
-    GLOB_IFACE="wlan0";
-  fi
-
-  if [ "$ETH0_IP" != "" ]; then
-    GLOB_IFACE="eth0";
-  fi
+  interfaces=$(sudo ifconfig -a | awk '/^\w/ && !/^lo/ {print $1}');
+  
+  for interface in $interfaces;do
+    if [ "$(/sbin/ifconfig $interface | awk '/inet/ {print $2}' | cut -d":" -f2)" != "" ]; then
+      GLOB_IFACE=$interface;
+      break;
+    fi
+  done;
   MESSAGE+=" \E[1;37mdone\033[0m\n";
-
 }
 
 # initialize firewall depedencies
