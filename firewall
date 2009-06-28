@@ -1,36 +1,13 @@
 #!/bin/bash
+#
 # Copyright (c) 2005-2009Ajnasz, Hungary
 #
 # Author: Lajos KOSZTI [Ajnasz] (ajnasz@gmail.com), 2005-2009
-#
-# Last modified: 2009-02-23 23:49
 #
 # /etc/init.d/firewall
 
 # set here the configuration file path
 CONFIG_FILE=/etc/firewall.conf
-
-
-#### OUTPUT PORTS #####
-# 20,21 ftp
-# 22 ssh
-# 25 smtp
-# 53 dns
-# 80 http
-# 110 pop3
-# 111 nfs - portmapper
-# 443 https
-# 587 smtp tls
-# 993 imap ssl
-# 1863 msn
-# 2049 nfs
-# 3000 travelwiki
-# 5222 gtalk
-# 6600 mpd
-# 6667 irc
-# 6883 azureus swing ui
-# 23399 skype
-#### OUTPUT PORTS #####
 
 function displayHelp {
   MESSAGEVV+="\E[1;34mstart displayHelp module\n";
@@ -346,16 +323,16 @@ function setOutTcpPorts {
       'ssh') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 22";;
       'whois') ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 43";;
       'nfs')
-        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 111 2049";
-        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_UDP_PORTS 111 2049";
+        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 111 2049"
+        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_UDP_PORTS 111 2049"
         ;;
       'dns')
-        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 53";
-        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_UDP_PORTS 53";
+        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 53"
+        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_UDP_PORTS 53"
         ;;
       'ntp')
-        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 123";
-        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_TCP_PORTS 123";
+        ALLOWED_OUT_TCP_PORTS="$ALLOWED_OUT_TCP_PORTS 123"
+        ALLOWED_OUT_UDP_PORTS="$ALLOWED_OUT_TCP_PORTS 123"
         ;;
      # '--ports')
      # ;;
@@ -419,21 +396,6 @@ do
 
   '--help' | '-h')
     displayHelp;
-  ;;
-
-  "share")
-    echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\003[0m";
-    resetFW;
-#    logUnclean;
-    initInput;
-    dropTcpPorts;
-    rejectTcpPorts;
-    attack;
-    allowIcmpIn;
-    allowSSH;
-    allowedInPorts;
-    closeInput;
-    echo -e -n " \E[1;37mdone\E[1;34m\033[0m\n";
   ;;
 
   "-v")
