@@ -19,7 +19,7 @@ function displayHelp {
 # globalis interface kinyerese
 function getGlobIface {
   MESSAGE+="\E[1;34mStart getGlobIface module";
-  interfaces=$(sudo ifconfig -a | awk '/^\w/ && !/^lo/ {print $1}');
+  interfaces=$(sudo ifconfig -a | awk '/^[a-z]+/ && !/^lo/ {print $1}');
   
   for interface in $interfaces;do
     if [ "$(/sbin/ifconfig $interface | awk '/inet/ {print $2}' | cut -d":" -f2)" != "" ]; then
