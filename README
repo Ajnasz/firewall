@@ -1,3 +1,8 @@
 Configurable basic firewall shell script
 
 Run the install.sh to install it. It will copy the firewall file to the /etc/init.d folder and the firewall.conf file to the /etc folder.
+
+license: http://www.gnu.org/licenses/gpl-2.0.html
+author: Lajos Koszti <ajnasz@ajnasz.hu>
+copyright: Copyright 2009, Lajos Koszti
+
