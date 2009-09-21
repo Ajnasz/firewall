@@ -1,0 +1,3 @@
+Configurable basic firewall shell script
+
+Run the install.sh to install it. It will copy the firewall file to the /etc/init.d folder and the firewall.conf file to the /etc folder.
