@@ -1,24 +1,37 @@
-#!/bin/bash
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          firewall
+# Required-Start:    $network
+# Required-Stop:     $network
+# Default-Start:     S 2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start firewall
+### END INIT INFO
+
+
+
+
+
+
 #
-# Copyright (c) 2005-2009Ajnasz, Hungary
+# Copyright (c) 2005-2009 Ajnasz, Hungary
 #
 # Author: Lajos KOSZTI [Ajnasz] (ajnasz@gmail.com), 2005-2009
 #
 # /etc/init.d/firewall
 
 # set here the configuration file path
+. /lib/lsb/init-functions
 CONFIG_FILE=/etc/firewall.conf
 
+
 function displayHelp {
-  MESSAGEVV+="\E[1;34mstart displayHelp module\n";
-  MESSAGE+="Usage: \E[1;32mfirewall \033[0m(\E[1;34mstart | stop | share | restart\033[0m)\n";
-  MESSAGE+="\E[1;36mstart\033[0m - \E[0;36mStart configured filewall, output, input chain filtered, internet connection shared\n";
-  MESSAGE+="\E[1;36mstop\033[0m  - \E[0;36mDelete all rule, set policies to default (accept everything)\n";
-  MESSAGE+="";
+  log_success_msg "Usage: /etc/init.d/firewall {start|stop|restart}"
 }
 # globalis interface kinyerese
 function getGlobIface {
-  MESSAGE+="\E[1;34mStart getGlobIface module";
+  log_action_begin_msg "Start getGlobIface module";
   interfaces=$(sudo ifconfig -a | awk '/^[a-z]+/ && !/^lo/ {print $1}');
   
   for interface in $interfaces;do
@@ -27,7 +40,7 @@ function getGlobIface {
       break;
     fi
   done;
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 # initialize firewall depedencies
@@ -41,14 +54,14 @@ function resetFW {
 
 # modulok betoltese
 function loadModules {
-  MESSAGE+="\E[1;34mStart loadModules module";
+  log_action_begin_msg "Start loadModules module";
   modprobe ip_tables;
   modprobe nf_conntrack_ftp;
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 function rmModules {
-  MESSAGE+="\E[1;34mStart rmModules module";
+  log_action_begin_msg "Start rmModules module";
   rmmod nf_conntrack_ftp &> /dev/null
   rmmod iptable_mangle &> /dev/null
   rmmod iptable_filter &> /dev/null
@@ -56,13 +69,13 @@ function rmModules {
   rmmod iptable_nat &> /dev/null
   rmmod iptable_filter &> /dev/null
   rmmod ip_tables &> /dev/null
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 
 }
 
 # osszes szabaly torlese
 function delRules {
-  MESSAGE+="\E[1;34mStart delRules module";
+  log_action_begin_msg "Start delRules module";
   $IPTABLES -P INPUT ACCEPT;
   $IPTABLES -P FORWARD ACCEPT;
   $IPTABLES -P OUTPUT ACCEPT;
@@ -70,17 +83,17 @@ function delRules {
     $IPTABLES -t $table -F;
     $IPTABLES -t $table -X;
   done;
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 
 # input lanc alapertelmezett szabalyai
 function initInput {
-  MESSAGE+="\E[1;34mStart initInput module";
+  log_action_begin_msg "Start initInput module";
   $IPTABLES -A INPUT -m state --state INVALID -j DROP;
   $IPTABLES -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT;
   $IPTABLES -A INPUT -i lo -m state --state NEW -j ACCEPT;
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 function closeInput {
@@ -89,12 +102,12 @@ function closeInput {
 
 # output lanc alapertelmezett szabalyai
 function initOutput {
-  MESSAGE+="\E[1;34mStart initOutput module";
-
+  log_action_begin_msg "Start initOutput module";
   $IPTABLES -P OUTPUT DROP;
   $IPTABLES -A OUTPUT -m state --state INVALID -j DROP;
   $IPTABLES -A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT;
   $IPTABLES -A OUTPUT -o lo -j ACCEPT;
+  log_action_end_msg 0;
 }
 
 function closeOutput {
@@ -116,26 +129,26 @@ function outputAllowedPorts {
 
 # internet megosztas
 function shareNet {
-  MESSAGE+="\E[1;34mStart shareNet module";
+  log_action_begin_msg "Start shareNet module";
   echo 1 > /proc/sys/net/ipv4/ip_forward;
   $IPTABLES -t nat -A POSTROUTING -o eth1 -j MASQUERADE;
   SHARENET=1
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 # icmp csomagok szurese
 function allowIcmpIn {
-  MESSAGE+="\E[1;34mStart allowIcmpIn module";
+  log_action_begin_msg "Start allowIcmpIn module";
 # http://debianszerver.hu/firewall/index.php
   $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp --fragment -j DROP;
   $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT;
   $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp --icmp-type echo-request -j DROP;
   $IPTABLES -A INPUT -i $GLOB_IFACE -p icmp -j ACCEPT;
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 function allowSSH {
-  MESSAGE+="\E[1;34mStart allowSSH module";
+  log_action_begin_msg "\Start allowSSH module";
   if [ -z $ALLOWED_SSH_IPS  ]; then
     $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -m state --state NEW -m recent --name SSH_CONN --set;
     if [ $LOGGING -eq 1 ];then
@@ -156,21 +169,21 @@ function allowSSH {
 
     done
   fi
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 function portSD {
-  MESSAGE+="\E[1;34mStart portSD module";
+  log_action_begin_msg "Start portSD module";
   if [ $LOGGING -eq 1 ];then
     $IPTABLES -A INPUT -m psd -j LOG --log-level=$LOG_LEVEL --log-prefix "$LOG_PREFIX:psd:";
   fi
   $IPTABLES -A INPUT -m psd -j DROP;
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 function attack {
 
-  MESSAGE+="\E[1;34mStart attack module";
+  log_action_begin_msg "Start attack module";
   # NULL-SCAN
   if [ $LOGGING -eq 1 ];then
     $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --tcp-flags ALL NONE -j LOG --log-prefix "$LOG_PREFIX:Null-Scan:" --log-level=$LOG_LEVEL;
@@ -227,12 +240,12 @@ function attack {
 #    $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp ! --syn -m state --state NEW -j LOG --log-level=$LOG_LEVEL --log-prefix "$LOG_PREFIX:new-wo-syn";
 #  fi
 #  $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp ! --syn -m state --state NEW -j DROP;
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 
 function allowedInPorts {
-  MESSAGE+="\E[1;34mStart allowedInPorts module";
+  log_action_begin_msg "Start allowedInPorts module";
   # $IPTABLES -A INPUT -s 192.168.1.0/24 -p tcp --dport 3000 -j ACCEPT
   # $IPTABLES -A INPUT -s 192.168.131.0/24 -p tcp --dport 3000 -j ACCEPT
   for i in $ALLOWED_IN_TCP_PORTS
@@ -243,24 +256,25 @@ function allowedInPorts {
     do
     $IPTABLES -A INPUT -i $GLOB_IFACE -p udp --dport $i -m state --state NEW -j ACCEPT;
   done
-    MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 
 function logUnclean {
-  MESSAGE+="\E[1;34mStart logUnclean module";
+  log_action_begin_msg "Start logUnclean module";
   if [ $LOGGING -eq 1 ];then
     $IPTABLES -A INPUT -m unclean -j LOG --log-prefix "$LOG_PREFIX:unclean:" --log-level=$LOG_LEVEL;
   fi
-  MESSAGE+=" \E[1;37mdone\033[0m\n";
+  log_action_end_msg 0;
 }
 
 function allowInMultiport {
-  MESSAGE+="\E[1;34mStart allowMultiport module";
+  log_action_begin_msg "Start allowMultiport module";
   for i in $ALLOWED_IN_MULTIPORT
     do
     $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $i -m state --state NEW -j ACCEPT;
   done
+  log_action_end_msg 0;
 }
 
 function forceProxy {
@@ -343,7 +357,6 @@ setOutTcpPorts $ALLOWED_SERVICES_TO_CONNECT
 ##############################  Tuzfal konfiguracio end #############################
 
 function startFW {
-    echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
     resetFW;
     if [ $SHARENET -eq 1 ];then
       shareNet
@@ -366,7 +379,6 @@ function startFW {
     allowedInPorts;
     logDrop;
     closeInput;
-    echo -e -n " \E[1;37mdone\E[1;34m\033[0m\n";
 }
 
 
@@ -378,32 +390,26 @@ while [ "$#" -gt "0" ]
 do
   case "$1" in
   'start' | 'restart')
+    log_begin_msg "Starting Ajnasz's Firewall" "netfilter";
     startFW
   ;;
 
 
   'stop')
-    echo -e -n "\E[1;35mStop Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
+    log_begin_msg "Stop Ajnasz's Firewall" "netfilter";
     resetFW;
-    echo -e -n " \E[1;37mdone\E[1;34m\033[0m\n";
   ;;
 
   '--help' | '-h')
     displayHelp;
   ;;
 
-  "-v")
-    SHOWMESSAGE=1;
-    ;;
-
   *)
-    echo -e -n "\E[1;35mStarting Ajnasz's Firewall: Netfilter\E[1;34m...\033[0m";
     displayHelp;
   ;;
   esac
   shift;
 done;
 
-if [ ! -z "$SHOWMESSAGE" ]; then
-  echo -e "$MESSAGE";
-fi
+
+log_end_msg 0;
