@@ -33,7 +33,7 @@ function displayHelp {
 function getGlobIface {
   log_action_begin_msg "Start getGlobIface module";
   interfaces=$(sudo ifconfig -a | awk '/^[a-z]+/ && !/^lo/ {print $1}');
-  
+
   for interface in $interfaces;do
     if [ "$(/sbin/ifconfig $interface | awk '/inet/ {print $2}' | cut -d":" -f2)" != "" ]; then
       GLOB_IFACE=$interface;
