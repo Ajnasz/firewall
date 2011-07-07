@@ -149,7 +149,7 @@ function allowIcmpIn {
 
 function allowSSH {
   log_action_begin_msg "\Start allowSSH module";
-  if [ -z $ALLOWED_SSH_IPS  ]; then
+  if [ -z $ALLOWED_SSH_IPS ]; then
     $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -m state --state NEW -m recent --name SSH_CONN --set;
     if [ $LOGGING -eq 1 ];then
       $IPTABLES -A INPUT -i $GLOB_IFACE -p tcp --dport $SSH_PORT -m state --state NEW -m recent --name SSH_CONN --update --seconds 120 --hitcount 3 -j LOG --log-prefix "$LOG_PREFIX:ssh-conn:" --log-level=$LOG_LEVEL;
@@ -306,6 +306,14 @@ function logDrop {
   fi
 }
 
+function cups {
+  if [ $ENABLE_CUPS_SNMP -eq 1 ]; then
+    # http://www.mail-archive.com/scientific-linux-users@listserv.fnal.gov/msg02910.html
+    $IPTABLES -A OUTPUT -p udp --dport 161 -m recent --name cups_snmp --rsource --set -j ACCEPT
+    $IPTABLES -A INPUT -p udp --sport 161 -m recent --name cups_snmp --rdest --rcheck -j ACCEPT
+  fi
+}
+
 function setOutTcpPorts {
 
 # TEMP=`getopt -o ab:c:: --long a-long,b-long:,c-long:: -n 'example.bash' -- "$@"`
@@ -377,6 +385,7 @@ function startFW {
       allowSSH;
     fi
     allowedInPorts;
+    cups;
     logDrop;
     closeInput;
 }
